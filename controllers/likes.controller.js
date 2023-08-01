@@ -6,7 +6,7 @@ const likePost = async (req, res) => {
     post_id: req.body.post_id,
     liked: true,
     author: req.body.author,
-    total_likes: +1,
+    total_likes: 1,
   });
   res.status(200).send(like);
 };
