@@ -24,11 +24,12 @@ const registerUser = async (req, res) => {
 const addUserProfileInfo = async (req, res) => {
   const { bio, address, id } = req.body;
   const profilePicture = process.env.SERVER_URL + req.file.path;
+  console.log(req.user.id);
   const createUserProfile = await UserProfile.create({
     bio,
     address,
     profilePicture: profilePicture,
-    user: id,
+    user: req.user.id,
   });
   res.status(200).json({ message: createUserProfile });
 };

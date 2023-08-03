@@ -39,18 +39,26 @@ const getPost = async (req, res) => {
     });
 
   const postAgg = await Post.aggregate([
-    { $match: { _id: new mongoose.Types.ObjectId(id) } },
+    // { $match: { _id: new mongoose.Types.ObjectId(id) } },
     {
       $lookup: {
-        from: "User",
-        localField: "_id",
-        foreignField: "author",
-        as: "authorInfo",
+        from: "userprofiles",
+        localField: "author",
+        foreignField: "user",
+        as: "authorProfile",
       },
     },
     {
       $lookup: {
-        from: "Comments",
+        from: "users",
+        localField: "author",
+        foreignField: "_id",
+        as: "author",
+      },
+    },
+    {
+      $lookup: {
+        from: "comments",
         localField: "_id",
         foreignField: "post_id",
         as: "comments",
@@ -58,10 +66,52 @@ const getPost = async (req, res) => {
     },
     {
       $lookup: {
-        from: "Likes",
+        from: "likes",
         localField: "_id",
         foreignField: "post_id",
         as: "likes",
+      },
+    },
+
+    { $unwind: "$comments" }, // Unwind the comments array
+    { $unwind: "$likes" },
+    { $unwind: "$author" },
+    { $unwind: "$authorProfile" },
+    {
+      $lookup: {
+        from: "userprofiles",
+        localField: "author._id",
+        foreignField: "user",
+        as: "userProfile",
+      },
+    },
+
+    {
+      $lookup: {
+        from: "users",
+        localField: "likes.author",
+        foreignField: "_id",
+        as: "likes.authorInfo",
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "comments.author",
+        foreignField: "_id",
+        as: "comments.authorInfo",
+      },
+    },
+
+    {
+      $group: {
+        _id: "$_id",
+        post_content: { $first: "$post_content" },
+        authorProfile: { $first: "$authorProfile" },
+        author: { $first: "$author" },
+        createAt: { $first: "$createAt" },
+        likesData: { $addToSet: "$likes" },
+        commentsData: { $addToSet: "$comments" },
       },
     },
 
@@ -70,20 +120,28 @@ const getPost = async (req, res) => {
         _id: 0,
         post_content: 1,
         author: 1,
-        authorInfo: 1,
+        author: {
+          name: "$author.name",
+          email: "$author.email",
+          profilePicture: "$authorProfile.profilePicture",
+        },
+
         likes: {
           $map: {
-            input: "$likes",
+            input: "$likesData",
             as: "like",
             in: {
               author: "$$like.author",
+              authorInfoName: {
+                $arrayElemAt: ["$likesData.authorInfo.name", 0],
+              },
             },
           },
         },
         liked_count: {
           $size: {
             $filter: {
-              input: "$likes",
+              input: "$likesData",
               as: "like",
               cond: { $eq: ["$$like.liked", true] },
             },
@@ -91,16 +149,17 @@ const getPost = async (req, res) => {
         },
         comments: {
           $map: {
-            input: "$comments",
+            input: "$commentsData",
             as: "comment",
             in: {
               comment_content: "$$comment.comment_content",
               author: "$$comment.author",
-              authorInfo: { $arrayElemAt: ["$$comment.authorInfo", 0] },
+              authorName: { $arrayElemAt: ["$$comment.authorInfo.name", 0] },
+              authorEmail: { $arrayElemAt: ["$$comment.authorInfo.email", 0] },
             },
           },
         },
-        total_comments: { $size: "$comments" },
+        total_comments: { $size: "$commentsData.comment_content" },
       },
     },
   ]);
