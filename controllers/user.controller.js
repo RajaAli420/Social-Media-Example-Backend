@@ -60,26 +60,89 @@ const getUserProfile = async (req, res) => {
   const user = await User.findById(id);
   let pageSize = 3;
   if (!user) throw new CustomAPIError("User not Found", StatusCodes.NOT_FOUND);
-  const userProfile = await User.findOne({ _id: id })
-    .populate({
-      options: { limit: pageSize, skip: (pageNumber - 1) * pageSize },
-      path: "posts",
-      model: "Post",
-      select: "post_content -author",
-      populate: [
-        {
-          path: "comments",
-          model: "Comments",
-          select: "comments_content author -_id",
+  // const userProfile = await User.findOne({ _id: id })
+  //   .populate({
+  //     options: { limit: pageSize, skip: (pageNumber - 1) * pageSize },
+  //     path: "posts",
+  //     select: "post_content -author ",
+  //     populate: [
+  //       {
+  //         path: "comments",
+  //         select: "comment_content -_id",
+  //       },
+  //       {
+  //         path: "likes",
+  //         match: { liked: true },
+  //         select: " liked author -_id ",
+  //       },
+  //     ],
+  //   })
+  //   .populate("userprofile", "bio address profilepicture -_id -user  ")
+  //   .addFields({
+  //     total_likes: { $size: "$posts.likes" },
+  //   });
+  const userProfile = await User.aggregate([
+    { $match: { _id: new mongoose.Types.ObjectId(id) } },
+    {
+      $lookup: {
+        from: "posts",
+        localField: "_id",
+        foreignField: "author",
+        as: "posts",
+      },
+    },
+    {
+      $unwind: "$posts",
+    },
+    {
+      $lookup: {
+        from: "comments",
+        localField: "posts._id",
+        foreignField: "post_id",
+        as: "posts.comments",
+      },
+    },
+    {
+      $unwind: { path: "$posts.comments", preserveNullAndEmptyArrays: true },
+    },
+    {
+      $lookup: {
+        from: "likes",
+        localField: "posts._id",
+        foreignField: "post_id",
+        as: "posts.likes",
+      },
+    },
+    {
+      $unwind: { path: "$posts.likes", preserveNullAndEmptyArrays: true },
+    },
+    {
+      $group: {
+        _id: "$_id",
+        posts: {
+          $push: {
+            post_content: "$posts.post_content",
+            likes: "$posts.likes",
+            total_likes: {
+              $sum: {
+                $cond: [
+                  { $eq: ["$posts.likes", null] },
+                  0,
+                  { $cond: [{ $eq: ["$posts.likes.liked", true] }, 1, 0] },
+                ],
+              },
+            },
+          },
         },
-        {
-          path: "likes",
-          model: "Likes",
-          select: "likes_count liked author -_id",
-        },
-      ],
-    })
-    .populate("userprofile", "bio address profilepicture -_id -user  ");
+      },
+    },
+    {
+      $project: {
+        _id: 1,
+        posts: 1,
+      },
+    },
+  ]);
 
   res.status(200).json(userProfile);
 };

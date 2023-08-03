@@ -148,7 +148,6 @@ const getPost = async (req, res) => {
                 input: "$likesData",
                 as: "like",
                 in: {
-                  author: "$$like.author",
                   authorName: {
                     $arrayElemAt: ["$$like.authorInfo.name", 0],
                   },

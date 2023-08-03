@@ -35,7 +35,7 @@ server.use("/api/auth/", authRouter);
 server.use("/api/post", postRouter);
 server.use("/api/like/", likeRouter);
 server.use("/api/comment/", commentRouter);
-server.use(errorHandlerMiddleware);
+// server.use(errorHandlerMiddleware);
 
 const start = async () => {
   try {
