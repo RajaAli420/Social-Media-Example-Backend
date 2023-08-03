@@ -26,20 +26,9 @@ const mongoose = require("mongoose");
 
 const getPost = async (req, res) => {
   const { id } = req.params;
-  const post = await Post.findOne({ _id: id })
-    .populate({ path: "likes", select: "liked author -post_id" })
-    .populate({
-      path: "comments",
-      select: "comment_content author -post_id",
-      populate: {
-        path: "User",
-        // select: "username",
-        strictPopulate: false,
-      },
-    });
 
   const postAgg = await Post.aggregate([
-    // { $match: { _id: new mongoose.Types.ObjectId(id) } },
+    { $match: { _id: new mongoose.Types.ObjectId(id) } },
     {
       $lookup: {
         from: "userprofiles",
@@ -69,14 +58,22 @@ const getPost = async (req, res) => {
         from: "likes",
         localField: "_id",
         foreignField: "post_id",
+        pipeline: [
+          {
+            $match: {
+              liked: true,
+            },
+          },
+        ],
         as: "likes",
       },
     },
 
     { $unwind: "$comments" }, // Unwind the comments array
-    { $unwind: "$likes" },
+    { $unwind: { path: "$likes", preserveNullAndEmptyArrays: true } }, // Unwind comments
     { $unwind: "$author" },
     { $unwind: "$authorProfile" },
+
     {
       $lookup: {
         from: "userprofiles",
@@ -100,6 +97,22 @@ const getPost = async (req, res) => {
         localField: "comments.author",
         foreignField: "_id",
         as: "comments.authorInfo",
+      },
+    },
+    {
+      $lookup: {
+        from: "userprofiles",
+        localField: "likes.author",
+        foreignField: "user",
+        as: "likes.userProfile",
+      },
+    },
+    {
+      $lookup: {
+        from: "userprofiles",
+        localField: "comments.author",
+        foreignField: "user",
+        as: "comments.userProfile",
       },
     },
 
@@ -127,13 +140,40 @@ const getPost = async (req, res) => {
         },
 
         likes: {
+          $cond: {
+            if: { $eq: [{ $size: "$likesData" }, 0] },
+            then: [],
+            else: {
+              $map: {
+                input: "$likesData",
+                as: "like",
+                in: {
+                  author: "$$like.author",
+                  authorName: {
+                    $arrayElemAt: ["$$like.authorInfo.name", 0],
+                  },
+                  authorProfile: {
+                    $arrayElemAt: ["$$like.userProfile.profilePicture", 0],
+                  },
+                },
+              },
+            },
+          },
+        },
+
+        comments: {
           $map: {
-            input: "$likesData",
-            as: "like",
+            input: "$commentsData",
+            as: "comment",
             in: {
-              author: "$$like.author",
-              authorInfoName: {
-                $arrayElemAt: ["$likesData.authorInfo.name", 0],
+              comment_content: "$$comment.comment_content",
+
+              authorName: {
+                $arrayElemAt: ["$$comment.authorInfo.name", 0],
+              },
+
+              authorProfile: {
+                $arrayElemAt: ["$$comment.userProfile.profilePicture", 0],
               },
             },
           },
@@ -147,27 +187,16 @@ const getPost = async (req, res) => {
             },
           },
         },
-        comments: {
-          $map: {
-            input: "$commentsData",
-            as: "comment",
-            in: {
-              comment_content: "$$comment.comment_content",
-              author: "$$comment.author",
-              authorName: { $arrayElemAt: ["$$comment.authorInfo.name", 0] },
-              authorEmail: { $arrayElemAt: ["$$comment.authorInfo.email", 0] },
-            },
-          },
-        },
         total_comments: { $size: "$commentsData.comment_content" },
       },
     },
   ]);
 
   console.log(postAgg);
-  if (!post) throw new CustomAPIError("Post not found", BAD_REQUEST);
+  if (!postAgg) throw new CustomAPIError("Post not found", BAD_REQUEST);
   res.status(200).json(postAgg);
 };
+
 //not tested
 const deletePost = async (req, res) => {
   const { id } = req.params;
