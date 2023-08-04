@@ -1,3 +1,5 @@
+const { StatusCodes } = require("http-status-codes");
+const CustomAPIError = require("../errors/custom.error");
 const Comment = require("../models/comment");
 const mongoose = require("mongoose");
 const createComment = async (req, res) => {
@@ -12,37 +14,16 @@ const createComment = async (req, res) => {
     res.status(400).json(err);
   }
 };
-
-const getComment = async (req, res) => {
+//
+const updateComment = async (req, res) => {
   const id = req.params.id;
-
-  // console.log(await Comment.findOne({ _id: req.params.id }));
-  const comment = await Comment.aggregate([
-    {
-      $match: {
-        _id: id,
-      },
-    },
-    {
-      $lookup: {
-        from: "posts",
-        localField: "post_id",
-        foreignField: "_id",
-        as: "post",
-      },
-    },
-    {
-      $lookup: {
-        from: "users",
-        localField: "author",
-        foreignField: "_id",
-        as: "users",
-      },
-    },
-  ]);
-  console.log("Comment with User Lookup:", comment); // Log the result of the aggregation
-
-  res.status(200).json(comment);
+  const updateComment = await Comment.updateOne(
+    { _id: id },
+    { comment_content: req.body.comment_content }
+  );
+  if (!updateComment)
+    throw new CustomAPIError("Error Occured During Update", 500);
+  res.status(200).json(updateComment);
 };
 const getAllCommentsPopulateMethod = async (req, res) => {
   console.log(req.query);
@@ -103,11 +84,11 @@ const getAllCommentsPopulateMethod = async (req, res) => {
   }
 };
 const getAllCommentsAggregateMethod = async (req, res) => {
-  console.log(req.query);
   const { post_id, createdAt } = req.query;
   console.log("Comment with post_id:", post_id, createdAt);
   let allComments = {};
-
+  if (!post_id)
+    throw new CustomAPIError("No Post_ID Provided", StatusCodes.NOT_FOUND);
   if (!createdAt) {
     allComments = await Comment.aggregate([
       {
@@ -139,7 +120,6 @@ const getAllCommentsAggregateMethod = async (req, res) => {
           comment_content: { $first: "$comment_content" },
           createdAt: { $first: "$createdAt" },
           UserData: { $addToSet: "$User" },
-          // UserProfile: { $first: "$UserProfile" },
         },
       },
       {
@@ -224,7 +204,7 @@ const getAllCommentsAggregateMethod = async (req, res) => {
 };
 module.exports = {
   createComment,
-  getComment,
+  updateComment,
   getAllCommentsPopulateMethod,
   getAllCommentsAggregateMethod,
 };

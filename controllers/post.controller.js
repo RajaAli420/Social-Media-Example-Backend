@@ -24,7 +24,7 @@ const editPost = async (req, res) => {
 };
 const mongoose = require("mongoose");
 
-const getPost = async (req, res) => {
+const getSinglePost = async (req, res) => {
   const { id } = req.params;
 
   const postAgg = await Post.aggregate([
@@ -195,7 +195,94 @@ const getPost = async (req, res) => {
   if (!postAgg) throw new CustomAPIError("Post not found", BAD_REQUEST);
   res.status(200).json(postAgg);
 };
+const getAllPosts = async (req, res) => {
+  const postAgg = await Post.aggregate([
+    {
+      //for getting user details about post owner
+      $lookup: {
+        from: "userprofiles",
+        localField: "author",
+        foreignField: "user",
+        as: "authorProfile",
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "author",
+        foreignField: "_id",
+        as: "author",
+      },
+    },
+    //for total comments on Posts
+    {
+      $lookup: {
+        from: "comments",
+        localField: "_id",
+        foreignField: "post_id",
+        as: "comments",
+      },
+    },
+    //for likes comments on Posts
+    {
+      $lookup: {
+        from: "likes",
+        localField: "_id",
+        foreignField: "post_id",
+        pipeline: [
+          {
+            $match: {
+              liked: true,
+            },
+          },
+        ],
+        as: "likes",
+      },
+    },
+    {
+      $addFields: { likes: "$likes" },
+    },
+    {
+      $group: {
+        _id: "$_id",
+        post_content: { $first: "$post_content" },
+        authorProfile: { $first: "$authorProfile" },
+        author: { $first: "$author" },
+        createAt: { $first: "$createAt" },
+        likes: { $first: "$likes" },
+        comments: { $first: "$comments" },
+      },
+    },
 
+    {
+      $project: {
+        _id: 1,
+        post_content: 1,
+
+        author: {
+          name: {
+            $arrayElemAt: ["$author.name", 0],
+          },
+          email: {
+            $arrayElemAt: ["$author.email", 0],
+          },
+          profilePicture: {
+            $arrayElemAt: ["$authorProfile.profilePicture", 0],
+          },
+        },
+
+        liked_count: {
+          $size: "$likes",
+        },
+        total_comments: { $size: "$comments" },
+      },
+    },
+  ]);
+
+  console.log(postAgg[0]);
+  if (!postAgg) throw new CustomAPIError("Post not found", BAD_REQUEST);
+  res.status(200).json({ Msg: postAgg });
+};
 //not tested
 const deletePost = async (req, res) => {
   const { id } = req.params;
@@ -203,4 +290,10 @@ const deletePost = async (req, res) => {
   if (!post) throw new CustomAPIError("Post not found", BAD_REQUEST);
   res.status(200).json(post);
 };
-module.exports = { createPost, getPost, editPost, deletePost };
+module.exports = {
+  createPost,
+  getSinglePost,
+  getAllPosts,
+  editPost,
+  deletePost,
+};
