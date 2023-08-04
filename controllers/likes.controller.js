@@ -1,3 +1,4 @@
+const { default: mongoose } = require("mongoose");
 const CustomAPIError = require("../errors/custom.error");
 const Likes = require("../models/likes");
 const likePost = async (req, res) => {
@@ -25,4 +26,51 @@ const likePost = async (req, res) => {
   }
 };
 
-module.exports = likePost;
+const getAllLikesData = async (req, res) => {
+  const { post_id } = req.query;
+  console.log(post_id);
+  const likesData = await Likes.aggregate([
+    {
+      $match: {
+        post_id: new mongoose.Types.ObjectId(post_id),
+      },
+    },
+    {
+      $match: {
+        liked: true,
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "author",
+        foreignField: "_id",
+        as: "authorInfo",
+      },
+    },
+    { $unwind: "$authorInfo" },
+    {
+      $lookup: {
+        from: "userprofiles",
+        localField: "authorInfo._id",
+        foreignField: "user",
+        as: "authorInfo.userProfile",
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        liked: 1,
+        // authorInfo: {
+        name: "$authorInfo.name",
+        profilePicture: {
+          $arrayElemAt: ["$authorInfo.userProfile.profilePicture", 0],
+        },
+        // },
+      },
+    },
+  ]);
+  res.status(200).json(likesData);
+};
+
+module.exports = { likePost, getAllLikesData };

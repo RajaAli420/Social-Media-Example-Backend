@@ -39,7 +39,6 @@ const updateUserProfile = async (req, res) => {
   if (req.file) {
     req.body.profilePicture = process.env.SERVER_URL + req.file.path;
   }
-  // console.log(req.body, id);
 
   const updateUser = await UserProfile.findOneAndUpdate(
     { user: id },
@@ -59,28 +58,10 @@ const getUserProfile = async (req, res) => {
   const id = req.user.id;
   const user = await User.findById(id);
   let pageSize = 3;
+  console.log("in here");
   if (!user) throw new CustomAPIError("User not Found", StatusCodes.NOT_FOUND);
-  // const userProfile = await User.findOne({ _id: id })
-  //   .populate({
-  //     options: { limit: pageSize, skip: (pageNumber - 1) * pageSize },
-  //     path: "posts",
-  //     select: "post_content -author ",
-  //     populate: [
-  //       {
-  //         path: "comments",
-  //         select: "comment_content -_id",
-  //       },
-  //       {
-  //         path: "likes",
-  //         match: { liked: true },
-  //         select: " liked author -_id ",
-  //       },
-  //     ],
-  //   })
-  //   .populate("userprofile", "bio address profilepicture -_id -user  ")
-  //   .addFields({
-  //     total_likes: { $size: "$posts.likes" },
-  //   });
+  //options: { limit: pageSize, skip: (pageNumber - 1) * pageSize },
+
   const userProfile = await User.aggregate([
     { $match: { _id: new mongoose.Types.ObjectId(id) } },
     {
@@ -91,8 +72,9 @@ const getUserProfile = async (req, res) => {
         as: "posts",
       },
     },
+
     {
-      $unwind: "$posts",
+      $unwind: { path: "$posts", preserveNullAndEmptyArrays: true },
     },
     {
       $lookup: {
@@ -103,43 +85,82 @@ const getUserProfile = async (req, res) => {
       },
     },
     {
-      $unwind: { path: "$posts.comments", preserveNullAndEmptyArrays: true },
+      $lookup: {
+        from: "userprofiles",
+        localField: "_id",
+        foreignField: "user",
+        as: "userprofile",
+      },
     },
+
     {
       $lookup: {
         from: "likes",
         localField: "posts._id",
         foreignField: "post_id",
+        pipeline: [
+          {
+            $match: {
+              liked: true,
+            },
+          },
+        ],
         as: "posts.likes",
       },
     },
-    {
-      $unwind: { path: "$posts.likes", preserveNullAndEmptyArrays: true },
-    },
+
     {
       $group: {
         _id: "$_id",
+        name: { $first: "$name" },
+        userprofile: { $first: "$userprofile" },
         posts: {
-          $push: {
-            post_content: "$posts.post_content",
-            likes: "$posts.likes",
-            total_likes: {
-              $sum: {
-                $cond: [
-                  { $eq: ["$posts.likes", null] },
-                  0,
-                  { $cond: [{ $eq: ["$posts.likes.liked", true] }, 1, 0] },
-                ],
-              },
-            },
-          },
+          $addToSet: "$posts",
         },
       },
     },
     {
+      $addFields: {
+        posts: {
+          $cond: {
+            if: { $isArray: "$posts" }, // Check if posts array is not null
+            then: {
+              $filter: {
+                input: "$posts",
+                as: "post",
+                cond: { $ne: ["$$post", null] },
+              },
+            },
+            else: [], // If posts array is null, return an empty array
+          },
+        },
+      },
+    },
+
+    {
       $project: {
         _id: 1,
-        posts: 1,
+        name: 1,
+        profilePicture: { $arrayElemAt: ["$userprofile.profilePicture", 0] },
+        posts: {
+          $map: {
+            input: "$posts",
+            as: "post",
+            in: {
+              postId: "$$post._id",
+              postContent: "$$post.post_content",
+              // totalLikes: { $size: "$$post.likes" }, // Include totalLikes only if posts array is not empty
+              totalLikes: {
+                $cond: {
+                  if: { $gt: [{ $size: "$$post.likes" }, 0] }, // Check if there are likes
+                  then: { $size: "$$post.likes" }, // Include totalLikes only if there are likes
+                  else: 0, // If no likes, return 0
+                },
+              },
+              totalComments: { $size: "$$post.comments" }, // Include totalComments only if posts array is not empty
+            },
+          },
+        },
       },
     },
   ]);

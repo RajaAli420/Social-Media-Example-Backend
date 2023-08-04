@@ -70,7 +70,6 @@ const getSinglePost = async (req, res) => {
     },
 
     { $unwind: "$comments" }, // Unwind the comments array
-    { $unwind: { path: "$likes", preserveNullAndEmptyArrays: true } }, // Unwind comments
     { $unwind: "$author" },
     { $unwind: "$authorProfile" },
 
@@ -86,27 +85,12 @@ const getSinglePost = async (req, res) => {
     {
       $lookup: {
         from: "users",
-        localField: "likes.author",
-        foreignField: "_id",
-        as: "likes.authorInfo",
-      },
-    },
-    {
-      $lookup: {
-        from: "users",
         localField: "comments.author",
         foreignField: "_id",
         as: "comments.authorInfo",
       },
     },
-    {
-      $lookup: {
-        from: "userprofiles",
-        localField: "likes.author",
-        foreignField: "user",
-        as: "likes.userProfile",
-      },
-    },
+
     {
       $lookup: {
         from: "userprofiles",
@@ -123,10 +107,23 @@ const getSinglePost = async (req, res) => {
         authorProfile: { $first: "$authorProfile" },
         author: { $first: "$author" },
         createAt: { $first: "$createAt" },
-        likesData: { $addToSet: "$likes" },
         commentsData: { $addToSet: "$comments" },
+        likes: { $first: "$likes" },
       },
     },
+    // {
+    //   $addFields: {
+    //     totalLikes: {
+    //       $size: {
+    //         $filter: {
+    //           input: "$likes",
+    //           as: "like",
+    //           cond: { $eq: ["$$like.liked", true] },
+    //         },
+    //       },
+    //     },
+    //   },
+    // },
 
     {
       $project: {
@@ -138,28 +135,6 @@ const getSinglePost = async (req, res) => {
           email: "$author.email",
           profilePicture: "$authorProfile.profilePicture",
         },
-
-        likes: {
-          $cond: {
-            if: { $eq: [{ $size: "$likesData" }, 0] },
-            then: [],
-            else: {
-              $map: {
-                input: "$likesData",
-                as: "like",
-                in: {
-                  authorName: {
-                    $arrayElemAt: ["$$like.authorInfo.name", 0],
-                  },
-                  authorProfile: {
-                    $arrayElemAt: ["$$like.userProfile.profilePicture", 0],
-                  },
-                },
-              },
-            },
-          },
-        },
-
         comments: {
           $map: {
             input: "$commentsData",
@@ -177,15 +152,7 @@ const getSinglePost = async (req, res) => {
             },
           },
         },
-        liked_count: {
-          $size: {
-            $filter: {
-              input: "$likesData",
-              as: "like",
-              cond: { $eq: ["$$like.liked", true] },
-            },
-          },
-        },
+        totalLikes: { $size: "$likes" },
         total_comments: { $size: "$commentsData.comment_content" },
       },
     },
