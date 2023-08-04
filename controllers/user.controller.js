@@ -17,6 +17,7 @@ const registerUser = async (req, res) => {
     username,
     password,
   });
+  console.log(user);
   if (!user) throw new BadRequestError("Invalid User Not Found");
   return res.status(201).json(user);
 };
@@ -119,29 +120,13 @@ const getUserProfile = async (req, res) => {
         },
       },
     },
-    {
-      $addFields: {
-        posts: {
-          $cond: {
-            if: { $isArray: "$posts" }, // Check if posts array is not null
-            then: {
-              $filter: {
-                input: "$posts",
-                as: "post",
-                cond: { $ne: ["$$post", null] },
-              },
-            },
-            else: [], // If posts array is null, return an empty array
-          },
-        },
-      },
-    },
 
     {
       $project: {
         _id: 1,
         name: 1,
         profilePicture: { $arrayElemAt: ["$userprofile.profilePicture", 0] },
+
         posts: {
           $map: {
             input: "$posts",
@@ -149,21 +134,18 @@ const getUserProfile = async (req, res) => {
             in: {
               postId: "$$post._id",
               postContent: "$$post.post_content",
-              // totalLikes: { $size: "$$post.likes" }, // Include totalLikes only if posts array is not empty
-              totalLikes: {
-                $cond: {
-                  if: { $gt: [{ $size: "$$post.likes" }, 0] }, // Check if there are likes
-                  then: { $size: "$$post.likes" }, // Include totalLikes only if there are likes
-                  else: 0, // If no likes, return 0
-                },
-              },
-              totalComments: { $size: "$$post.comments" }, // Include totalComments only if posts array is not empty
+              totalLikes: { $size: "$$post.likes" },
+
+              totalComments: { $size: "$$post.comments" },
             },
           },
         },
       },
     },
   ]);
+  if (!userProfile[0].posts[0].postId || !userProfile[0].posts[0].postContent) {
+    userProfile[0].posts = [];
+  }
 
   res.status(200).json(userProfile);
 };

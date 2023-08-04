@@ -10,10 +10,12 @@ const postRouter = require("./routes/post.route");
 const likeRouter = require("./routes/likes.route");
 const commentRouter = require("./routes/comment.route");
 const morgan = require("morgan");
-
+const mongoSanitize = require("express-mongo-sanitize");
+const helmet = require("helmet");
 const server = express();
-
+server.use(helmet());
 server.use(express.json());
+server.use(mongoSanitize());
 
 server.use(
   "/uploads/profilepictures",
@@ -36,6 +38,7 @@ server.use("/api/post", postRouter);
 server.use("/api/like/", likeRouter);
 server.use("/api/comment/", commentRouter);
 // server.use(errorHandlerMiddleware);
+// server.use(express.urlencoded({ extended: false }));
 
 const start = async () => {
   try {

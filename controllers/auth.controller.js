@@ -4,7 +4,10 @@ const { User } = require("../models/user");
 const jwt = require("jsonwebtoken");
 const login = async (req, res) => {
   const { username, password } = req.body;
+  console.log(username);
   const user = await User.findOne({ username: username });
+  console.log(user);
+
   if (!user) throw new CustomAPIError("User Not Found", StatusCodes.NOT_FOUND);
   if (user.password !== password)
     throw new CustomAPIError("Paswords do not match", StatusCodes.UNAUTHORIZED);
