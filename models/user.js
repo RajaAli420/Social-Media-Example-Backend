@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
 const UserSchema = new mongoose.Schema(
   {
     name: {
@@ -61,6 +62,11 @@ UserSchema.virtual("userprofile", {
   ref: "UserProfile",
   localField: "_id",
   foreignField: "user",
+});
+UserSchema.pre("save", async function () {
+  if (!this.isModified("password")) return;
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
 });
 const User = mongoose.model("User", UserSchema);
 const UserProfile = mongoose.model("UserProfile", ProfileSchema);

@@ -6,6 +6,7 @@ const connectDB = require("./db/connect");
 const userRouter = require("./routes/user.route");
 const errorHandlerMiddleware = require("./middlewares/error-handler.middleware");
 const authRouter = require("./routes/auth.route");
+const cors = require("cors");
 const postRouter = require("./routes/post.route");
 const likeRouter = require("./routes/likes.route");
 const commentRouter = require("./routes/comment.route");
@@ -16,7 +17,12 @@ const server = express();
 server.use(helmet());
 server.use(express.json());
 server.use(mongoSanitize());
-
+server.use(
+  cors({
+    origin: "http://localhost:4200/",
+    // credentials: true,
+  })
+);
 server.use(
   "/uploads/profilepictures",
   express.static(path.join(__dirname, "./uploads/profilepictures"))

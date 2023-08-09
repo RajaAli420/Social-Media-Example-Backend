@@ -248,7 +248,7 @@ const getAllPosts = async (req, res) => {
 
   console.log(postAgg[0]);
   if (!postAgg) throw new CustomAPIError("Post not found", BAD_REQUEST);
-  res.status(200).json({ Msg: postAgg });
+  res.status(200).json({ postAgg });
 };
 //not tested
 const deletePost = async (req, res) => {

@@ -17,7 +17,6 @@ const registerUser = async (req, res) => {
     username,
     password,
   });
-  console.log(user);
   if (!user) throw new BadRequestError("Invalid User Not Found");
   return res.status(201).json(user);
 };
