@@ -3,6 +3,10 @@ const {
   likePost,
   getAllLikesData,
 } = require("../controllers/likes.controller");
+const verifyUserCredentials = require("../middlewares/auth.middleware");
 const likeRouter = express.Router();
-likeRouter.route("/").post(likePost).get(getAllLikesData);
+likeRouter
+  .route("/")
+  .post(verifyUserCredentials, likePost)
+  .get(getAllLikesData);
 module.exports = likeRouter;

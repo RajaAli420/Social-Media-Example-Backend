@@ -7,7 +7,7 @@ const createComment = async (req, res) => {
     const comment = await Comment.create({
       comment_content: req.body.comment_content,
       post_id: req.body.post_id,
-      author: req.body.user_id,
+      author: req.user.id,
     });
     res.status(201).json(comment);
   } catch (err) {
@@ -202,6 +202,7 @@ const getAllCommentsAggregateMethod = async (req, res) => {
     res.status(200).json(allComments);
   }
 };
+
 module.exports = {
   createComment,
   updateComment,

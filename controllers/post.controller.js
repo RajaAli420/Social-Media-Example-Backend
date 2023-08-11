@@ -38,6 +38,11 @@ const getSinglePost = async (req, res) => {
       },
     },
     {
+      $addFields: {
+        afterLookup1: "$$ROOT", // Log the output after the first $lookup
+      },
+    },
+    {
       $lookup: {
         from: "users",
         localField: "author",
@@ -46,11 +51,21 @@ const getSinglePost = async (req, res) => {
       },
     },
     {
+      $addFields: {
+        afterLookup1: "$$ROOT", // Log the output after the first $lookup
+      },
+    },
+    {
       $lookup: {
         from: "comments",
         localField: "_id",
         foreignField: "post_id",
         as: "comments",
+      },
+    },
+    {
+      $addFields: {
+        afterLookup1: "$$ROOT", // Log the output after the first $lookup
       },
     },
     {
@@ -68,10 +83,15 @@ const getSinglePost = async (req, res) => {
         as: "likes",
       },
     },
+    {
+      $addFields: {
+        afterLookup1: "$$ROOT", // Log the output after the first $lookup
+      },
+    },
 
-    { $unwind: "$comments" }, // Unwind the comments array
-    { $unwind: "$author" },
-    { $unwind: "$authorProfile" },
+    { $unwind: { path: "$comments", preserveNullAndEmptyArrays: true } }, // Unwind the comments array
+    { $unwind: { path: "$author", preserveNullAndEmptyArrays: true } },
+    { $unwind: { path: "$authorProfile", preserveNullAndEmptyArrays: true } },
 
     {
       $lookup: {
@@ -81,7 +101,11 @@ const getSinglePost = async (req, res) => {
         as: "userProfile",
       },
     },
-
+    {
+      $addFields: {
+        afterLookup1: "$$ROOT", // Log the output after the first $lookup
+      },
+    },
     {
       $lookup: {
         from: "users",
@@ -90,7 +114,11 @@ const getSinglePost = async (req, res) => {
         as: "comments.authorInfo",
       },
     },
-
+    {
+      $addFields: {
+        afterLookup1: "$$ROOT", // Log the output after the first $lookup
+      },
+    },
     {
       $lookup: {
         from: "userprofiles",
@@ -99,55 +127,50 @@ const getSinglePost = async (req, res) => {
         as: "comments.userProfile",
       },
     },
-
+    {
+      $addFields: {
+        afterLookup1: "$$ROOT", // Log the output after the first $lookup
+      },
+    },
     {
       $group: {
         _id: "$_id",
         post_content: { $first: "$post_content" },
-        authorProfile: { $first: "$authorProfile" },
         author: { $first: "$author" },
         createAt: { $first: "$createAt" },
+        authorProfile: { $first: "$authorProfile" },
         commentsData: { $addToSet: "$comments" },
         likes: { $first: "$likes" },
       },
     },
-    // {
-    //   $addFields: {
-    //     totalLikes: {
-    //       $size: {
-    //         $filter: {
-    //           input: "$likes",
-    //           as: "like",
-    //           cond: { $eq: ["$$like.liked", true] },
-    //         },
-    //       },
-    //     },
-    //   },
-    // },
 
     {
       $project: {
         _id: 0,
         post_content: 1,
-        author: 1,
         author: {
           name: "$author.name",
           email: "$author.email",
           profilePicture: "$authorProfile.profilePicture",
         },
         comments: {
-          $map: {
-            input: "$commentsData",
-            as: "comment",
-            in: {
-              comment_content: "$$comment.comment_content",
-
-              authorName: {
-                $arrayElemAt: ["$$comment.authorInfo.name", 0],
-              },
-
-              authorProfile: {
-                $arrayElemAt: ["$$comment.userProfile.profilePicture", 0],
+          $cond: {
+            if: "$isCommentsEmpty",
+            then: [], // Empty array if no comments
+            else: {
+              $map: {
+                input: "$commentsData",
+                as: "comment",
+                in: {
+                  id: "$$comment._id",
+                  comment_content: "$$comment.comment_content",
+                  authorName: {
+                    $arrayElemAt: ["$$comment.authorInfo.name", 0],
+                  },
+                  authorProfile: {
+                    $arrayElemAt: ["$$comment.userProfile.profilePicture", 0],
+                  },
+                },
               },
             },
           },
@@ -157,7 +180,10 @@ const getSinglePost = async (req, res) => {
       },
     },
   ]);
-
+  console.log(postAgg);
+  if (!postAgg[0].comments[0].authorName) {
+    postAgg[0].comments = [];
+  }
   console.log(postAgg);
   if (!postAgg) throw new CustomAPIError("Post not found", BAD_REQUEST);
   res.status(200).json(postAgg);
@@ -245,10 +271,8 @@ const getAllPosts = async (req, res) => {
       },
     },
   ]);
-
-  console.log(postAgg[0]);
   if (!postAgg) throw new CustomAPIError("Post not found", BAD_REQUEST);
-  res.status(200).json({ postAgg });
+  res.status(200).json(postAgg);
 };
 //not tested
 const deletePost = async (req, res) => {

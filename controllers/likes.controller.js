@@ -4,19 +4,19 @@ const Likes = require("../models/likes");
 const likePost = async (req, res) => {
   const like = await Likes.findOne({
     post_id: req.body.post_id,
-    author: req.body.author,
+    author: req.user.id,
   });
   if (!like) {
     let newLike = await Likes.create({
       post_id: req.body.post_id,
-      author: req.body.author,
+      author: req.user.id,
       liked: true,
     });
     if (!newLike) throw new CustomAPIError("Error in Liking", 500);
     res.status(200).json({ Msg: "Post Liked" });
   } else {
     let updateLike = await Likes.updateOne(
-      { post_id: req.body.post_id, author: req.body.author },
+      { post_id: req.body.post_id, author: req.user.id },
       {
         liked: !like.liked,
       }
@@ -28,7 +28,6 @@ const likePost = async (req, res) => {
 
 const getAllLikesData = async (req, res) => {
   const { post_id } = req.query;
-  console.log(post_id);
   const likesData = await Likes.aggregate([
     {
       $match: {

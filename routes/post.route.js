@@ -9,6 +9,6 @@ const {
 } = require("../controllers/post.controller");
 const postRouter = express.Router();
 
-postRouter.route("/").post(verifyUserCredentials, createPost).get(getAllPosts);
+postRouter.route("/").post(createPost).get(getAllPosts);
 postRouter.route("/:id").get(getSinglePost).patch(editPost).delete(deletePost);
 module.exports = postRouter;
