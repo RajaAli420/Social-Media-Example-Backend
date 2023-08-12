@@ -37,11 +37,7 @@ const getSinglePost = async (req, res) => {
         as: "authorProfile",
       },
     },
-    {
-      $addFields: {
-        afterLookup1: "$$ROOT", // Log the output after the first $lookup
-      },
-    },
+
     {
       $lookup: {
         from: "users",
@@ -50,24 +46,23 @@ const getSinglePost = async (req, res) => {
         as: "author",
       },
     },
-    {
-      $addFields: {
-        afterLookup1: "$$ROOT", // Log the output after the first $lookup
-      },
-    },
+
     {
       $lookup: {
         from: "comments",
         localField: "_id",
         foreignField: "post_id",
+        pipeline: [
+          {
+            $sort: {
+              createdAt: -1,
+            },
+          },
+        ],
         as: "comments",
       },
     },
-    {
-      $addFields: {
-        afterLookup1: "$$ROOT", // Log the output after the first $lookup
-      },
-    },
+
     {
       $lookup: {
         from: "likes",
@@ -83,12 +78,6 @@ const getSinglePost = async (req, res) => {
         as: "likes",
       },
     },
-    {
-      $addFields: {
-        afterLookup1: "$$ROOT", // Log the output after the first $lookup
-      },
-    },
-
     { $unwind: { path: "$comments", preserveNullAndEmptyArrays: true } }, // Unwind the comments array
     { $unwind: { path: "$author", preserveNullAndEmptyArrays: true } },
     { $unwind: { path: "$authorProfile", preserveNullAndEmptyArrays: true } },
@@ -101,11 +90,8 @@ const getSinglePost = async (req, res) => {
         as: "userProfile",
       },
     },
-    {
-      $addFields: {
-        afterLookup1: "$$ROOT", // Log the output after the first $lookup
-      },
-    },
+    { $unwind: { path: "$userProfile", preserveNullAndEmptyArrays: true } },
+
     {
       $lookup: {
         from: "users",
@@ -114,11 +100,7 @@ const getSinglePost = async (req, res) => {
         as: "comments.authorInfo",
       },
     },
-    {
-      $addFields: {
-        afterLookup1: "$$ROOT", // Log the output after the first $lookup
-      },
-    },
+
     {
       $lookup: {
         from: "userprofiles",
@@ -127,11 +109,7 @@ const getSinglePost = async (req, res) => {
         as: "comments.userProfile",
       },
     },
-    {
-      $addFields: {
-        afterLookup1: "$$ROOT", // Log the output after the first $lookup
-      },
-    },
+
     {
       $group: {
         _id: "$_id",
@@ -151,7 +129,13 @@ const getSinglePost = async (req, res) => {
         author: {
           name: "$author.name",
           email: "$author.email",
-          profilePicture: "$authorProfile.profilePicture",
+          profilePicture: {
+            $cond: {
+              if: { $eq: ["$authorProfile", null] }, // Check if authorProfile is null
+              then: "", // Provide null if authorProfile is null
+              else: "$authorProfile.profilePicture", // Use profilePicture if authorProfile is not null
+            },
+          },
         },
         comments: {
           $cond: {
@@ -163,6 +147,7 @@ const getSinglePost = async (req, res) => {
                 as: "comment",
                 in: {
                   id: "$$comment._id",
+                  createdAt: "$$comment.createdAt",
                   comment_content: "$$comment.comment_content",
                   authorName: {
                     $arrayElemAt: ["$$comment.authorInfo.name", 0],
@@ -180,9 +165,11 @@ const getSinglePost = async (req, res) => {
       },
     },
   ]);
-  console.log(postAgg);
   if (!postAgg[0].comments[0].authorName) {
     postAgg[0].comments = [];
+  }
+  if (postAgg[0].comments) {
+    postAgg[0].comments.sort((a, b) => b.createdAt - a.createdAt);
   }
   console.log(postAgg);
   if (!postAgg) throw new CustomAPIError("Post not found", BAD_REQUEST);
@@ -190,6 +177,11 @@ const getSinglePost = async (req, res) => {
 };
 const getAllPosts = async (req, res) => {
   const postAgg = await Post.aggregate([
+    {
+      $sort: {
+        createAt: -1,
+      },
+    },
     {
       //for getting user details about post owner
       $lookup: {

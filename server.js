@@ -17,7 +17,7 @@ const helmet = require("helmet");
 const { Server } = require("socket.io");
 const likes = require("./models/likes");
 
-const { allCommentsOnAPostEvent, newTry } = require("./event-Helper");
+const { allCommentsOnAPostEvent, newTry, newPost } = require("./event-Helper");
 
 const server = express();
 const app = http.createServer(server);
@@ -46,13 +46,15 @@ io.on("connection", (socket) => {
 
   socket.on("newComment", async (_comment) => {
     console.log(_comment);
-    var newComment = await newTry(
-      _comment.post_id,
-      _comment.user_id,
-      _comment.comment_id
-    );
-    console.log(newComment);
+    var newComment = await newTry(_comment.comment_Id);
+    console.log(newComment.comment_content);
     socket.emit("addComment", newComment);
+  });
+
+  socket.on("newPost", async (post_id) => {
+    console.log(post_id);
+    var Post = await newPost(post_id);
+    socket.emit("newPostCreated", Post);
   });
 });
 server.use(
